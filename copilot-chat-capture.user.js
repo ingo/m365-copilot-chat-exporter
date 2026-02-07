@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name         M365 Copilot Chat Exporter
-// @namespace    https://github.com/ai-experiments
+// @namespace    https://github.com/ingo/m365-copilot-chat-exporter
 // @version      4.1
 // @description  Export Microsoft 365 Copilot conversations as ChatGPT-compatible conversations.json
 // @license      MIT
