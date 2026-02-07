@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         M365 Copilot Chat Exporter
 // @namespace    https://github.com/ingo/m365-copilot-chat-exporter
-// @version      4.2
+// @version      4.4
 // @description  Export Microsoft 365 Copilot conversations as ChatGPT-compatible conversations.json
 // @license      MIT
 // @author       ingo
@@ -41,7 +41,7 @@
   /**
    * Sanitize text to ensure it doesn't contain problematic control characters
    * that could break JSON encoding. Removes ASCII control characters (0-31)
-   * except for tab, newline, and carriage return which are valid in JSON strings.
+   * and replaces newlines/tabs with spaces to avoid JSON encoding issues.
    */
   function sanitizeText(text) {
     if (!text) return text;
@@ -49,9 +49,19 @@
     for (let i = 0; i < text.length; i++) {
       const char = text[i];
       const code = text.charCodeAt(i);
-      // Keep printable characters and valid whitespace (tab=9, newline=10, carriage return=13)
-      if (code >= 32 || code === 9 || code === 10 || code === 13) {
+      
+      if (code === 0x2028 || code === 0x2029) {
+        // Replace Unicode line/paragraph separators with space
+        result += " ";
+      } else if (code >= 32) {
+        // Keep printable characters
         result += char;
+      } else if (code === 10 || code === 13) {
+        // Replace newlines and carriage returns with space
+        result += " ";
+      } else if (code === 9) {
+        // Replace tabs with space
+        result += " ";
       }
       // Skip other control characters (0-8, 11-12, 14-31)
     }
@@ -622,8 +632,7 @@
   // ── Download helpers ───────────────────────────────────────────────
 
   function downloadJson(data, filename) {
-    // Replace Unicode line/paragraph separators (U+2028, U+2029) with \n
-    const jsonStr = JSON.stringify(data, null, 2).replace(/[\u2028\u2029]/g, "\n");
+    const jsonStr = JSON.stringify(data, null, 2);
     const blob = new Blob([jsonStr], { type: "application/json" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
@@ -849,7 +858,7 @@
       <div id="copilot-export-icon" title="Open Copilot Exporter">📥</div>
       <div id="copilot-export-panel">
         <div id="copilot-export-title-row">
-          <div class="title">Copilot Chat Exporter v4.1</div>
+          <div class="title">Copilot Chat Exporter v4.4</div>
           <button id="copilot-export-minimize-btn" title="Minimize" style="width:30px">−</button>
         </div>
         <div id="copilot-export-badge">Waiting for data...</div>
@@ -901,6 +910,6 @@
   }
 
   // ── Init ──────────────────────────────────────────────────────────
-  console.log("[Copilot Export v4.1] Loaded.");
+  console.log("[Copilot Export v4.4] Loaded.");
   createUI();
 })();
