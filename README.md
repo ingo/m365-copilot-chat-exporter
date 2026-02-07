@@ -11,6 +11,7 @@ A Tampermonkey userscript that bulk-exports your Copilot Chat history from [m365
 - **Date range filter** — filter by Today, Last 7 days, Last 30 days, Last year, or a custom date range before fetching/exporting
 - **Raw API export** — optionally export the raw Substrate API responses for debugging or custom processing
 - **Passive capture** — also captures conversations as you browse them normally, no fetch required
+- **Minimize panel** — collapse the floating panel to just an icon when not in use, click the icon to expand it again
 - **No external dependencies** — single self-contained userscript, no build step, no server
 
 ## How it works
@@ -40,8 +41,12 @@ The script reads your existing MSAL authentication token from the browser's `loc
 
 Hat tip to [M365 Copilot Exporter](https://greasyfork.org/en/scripts/543763-m365-copilot-exporter) by ganyuke — the MSAL token decryption approach and Substrate API request format were adapted from that project. This script differs by outputting ChatGPT-compatible `conversations.json` (instead of raw per-conversation JSON files), adding date range filtering, and running as a single zero-dependency userscript.
 
-## Screenshot
+## Screenshots
 
 Below is a screenshot of the floating panel added by the script:
 
 ![Screenshot of the floating panel](screenshot.png)
+
+The panel can be minimized to just an icon:
+
+![Screenshot of the minimized panel](minimized.png)
