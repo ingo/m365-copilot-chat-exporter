@@ -3,6 +3,7 @@
 // @namespace    https://github.com/ai-experiments
 // @version      4.1
 // @description  Export Microsoft 365 Copilot conversations as ChatGPT-compatible conversations.json
+// @author       ingo
 // @match        https://m365.cloud.microsoft/
 // @match        https://m365.cloud.microsoft/chat*
 // @match        https://microsoft365.com/chat*
@@ -681,6 +682,50 @@
           font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
           font-size: 13px;
         }
+        #copilot-export-title-row {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          margin-bottom: 8px;
+        }
+        #copilot-export-minimize-btn {
+          background: transparent;
+          border: none;
+          color: #555;
+          cursor: pointer;
+          font-size: 16px;
+          padding: 0 0 0 8px;
+          line-height: 1;
+          opacity: 0.5;
+          transition: opacity 0.15s;
+        }
+        #copilot-export-minimize-btn:hover {
+          opacity: 1;
+          color: #9d8aff;
+        }
+        #copilot-export-icon {
+          display: none;
+          width: 48px;
+          height: 48px;
+          background: linear-gradient(135deg, #a855f7 0%, #6366f1 100%);
+          border-radius: 50%;
+          cursor: pointer;
+          box-shadow: 0 4px 20px rgba(0,0,0,0.4);
+          align-items: center;
+          justify-content: center;
+          font-size: 24px;
+          color: white;
+          transition: transform 0.2s;
+        }
+        #copilot-export-icon:hover {
+          transform: scale(1.1);
+        }
+        #copilot-export-ui.minimized #copilot-export-panel {
+          display: none;
+        }
+        #copilot-export-ui.minimized #copilot-export-icon {
+          display: flex;
+        }
         #copilot-export-panel {
           background: #1a1a2e;
           color: #e0e0e0;
@@ -692,7 +737,6 @@
         #copilot-export-panel .title {
           font-weight: 600;
           font-size: 13px;
-          margin-bottom: 8px;
           color: #9d8aff;
         }
         #copilot-export-badge {
@@ -779,8 +823,12 @@
           min-width: 0;
         }
       </style>
+      <div id="copilot-export-icon" title="Open Copilot Exporter">📥</div>
       <div id="copilot-export-panel">
-        <div class="title">Copilot Chat Exporter v4.1</div>
+        <div id="copilot-export-title-row">
+          <div class="title">Copilot Chat Exporter v4.1</div>
+          <button id="copilot-export-minimize-btn" title="Minimize" style="width:30px">−</button>
+        </div>
         <div id="copilot-export-badge">Waiting for data...</div>
         <div id="copilot-export-status"></div>
         <div id="copilot-date-row">
@@ -801,7 +849,7 @@
         <button id="copilot-btn-fetchall" class="primary">Fetch All Conversations</button>
         <button id="copilot-btn-export">Export conversations.json</button>
         <button id="copilot-btn-raw">Export raw API captures</button>
-        <div class="hint">Click Fetch All to load all conversations<br>directly from the API.</div>
+        <div class="hint">Click Fetch All to load all conversations<br>directly from the API. <a href="https://github.com/ingo/m365_copilot_chat_exporter" target="_blank" style="color: #9d8aff; text-decoration: none;">About</a></div>
       </div>
     `;
 
@@ -814,25 +862,20 @@
       const customRow = document.getElementById("copilot-custom-dates");
       customRow.classList.toggle("visible", e.target.value === "custom");
     });
-  }
 
-  // Add 'About' link to the UI
-  const aboutLink = document.createElement('a');
-  aboutLink.href = 'https://github.com/ingo/m365_copilot_chat_exporter';
-  aboutLink.textContent = 'About';
-  aboutLink.style.position = 'fixed';
-  aboutLink.style.bottom = '10px';
-  aboutLink.style.right = '10px';
-  aboutLink.style.zIndex = '1000';
-  aboutLink.style.backgroundColor = '#fff';
-  aboutLink.style.padding = '5px 10px';
-  aboutLink.style.border = '1px solid #ccc';
-  aboutLink.style.borderRadius = '5px';
-  aboutLink.style.textDecoration = 'none';
-  aboutLink.style.color = '#000';
-  aboutLink.style.fontSize = '14px';
-  aboutLink.style.boxShadow = '0 2px 5px rgba(0, 0, 0, 0.2)';
-  document.body.appendChild(aboutLink);
+    // Minimize/maximize toggle
+    const ui = document.getElementById("copilot-export-ui");
+    const minimizeBtn = document.getElementById("copilot-export-minimize-btn");
+    const icon = document.getElementById("copilot-export-icon");
+
+    minimizeBtn.addEventListener("click", () => {
+      ui.classList.add("minimized");
+    });
+
+    icon.addEventListener("click", () => {
+      ui.classList.remove("minimized");
+    });
+  }
 
   // ── Init ──────────────────────────────────────────────────────────
   console.log("[Copilot Export v4.1] Loaded.");
