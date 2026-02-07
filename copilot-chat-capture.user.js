@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         M365 Copilot Chat Exporter
 // @namespace    https://github.com/ingo/m365-copilot-chat-exporter
-// @version      4.1
+// @version      4.2
 // @description  Export Microsoft 365 Copilot conversations as ChatGPT-compatible conversations.json
 // @license      MIT
 // @author       ingo
@@ -35,6 +35,28 @@
     "GenerateContentQuery",
     "AdsQuery",
   ]);
+
+  // ── Text sanitization ──────────────────────────────────────────────
+
+  /**
+   * Sanitize text to ensure it doesn't contain problematic control characters
+   * that could break JSON encoding. Removes ASCII control characters (0-31)
+   * except for tab, newline, and carriage return which are valid in JSON strings.
+   */
+  function sanitizeText(text) {
+    if (!text) return text;
+    let result = "";
+    for (let i = 0; i < text.length; i++) {
+      const char = text[i];
+      const code = text.charCodeAt(i);
+      // Keep printable characters and valid whitespace (tab=9, newline=10, carriage return=13)
+      if (code >= 32 || code === 9 || code === 10 || code === 13) {
+        result += char;
+      }
+      // Skip other control characters (0-8, 11-12, 14-31)
+    }
+    return result;
+  }
 
   // ── Date range helpers ──────────────────────────────────────────
 
@@ -513,11 +535,11 @@
       mapping[rootId].children.push(systemId);
 
       let prevId = systemId;
-      let title = conv.chatName || null;
+      let title = sanitizeText(conv.chatName) || null;
 
       for (const msg of conv.messages) {
         const created = toUnixSeconds(msg.createdAt);
-        const text = msg.text || "";
+        const text = sanitizeText(msg.text || "");
 
         let role;
         if (msg.author === "user") {
