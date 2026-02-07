@@ -3,6 +3,7 @@
 // @namespace    https://github.com/ai-experiments
 // @version      4.1
 // @description  Export Microsoft 365 Copilot conversations as ChatGPT-compatible conversations.json
+// @license      MIT
 // @author       ingo
 // @match        https://m365.cloud.microsoft/
 // @match        https://m365.cloud.microsoft/chat*
