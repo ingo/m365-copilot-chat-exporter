@@ -190,14 +190,29 @@
   }
 
   function getMsalIds() {
-    const el = document.getElementById("identity");
-    if (!el?.textContent) throw new Error("Missing #identity element in page");
-    const { objectId, tenantId } = JSON.parse(el.textContent);
+    const data = window.__staticRouterHydrationData;
+    if (!data) throw new Error("Missing __staticRouterHydrationData");
+  
+    function walk(o) {
+      if (!o || typeof o !== "object") return null;
+      if (o.objectId && o.tenantId) return o;
+      for (const v of Object.values(o)) {
+        const found = walk(v);
+        if (found) return found;
+      }
+      return null;
+    }
+  
+    const identity = walk(data);
+    if (!identity) throw new Error("Could not locate identity object");
+  
+    const { objectId, tenantId } = identity;
+  
     return {
       localAccountId: objectId,
       tenantId,
       homeAccountId: `${objectId}.${tenantId}`,
-      clientId: "c0ab8ce9-e9a0-42e7-b064-33d422df41f1",
+      clientId: "c0ab8ce9-e9a0-42e7-b064-33d422df41f1", // Copilot client ID
     };
   }
 
