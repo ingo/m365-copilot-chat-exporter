@@ -225,16 +225,52 @@
 
   async function getAccessToken(msalIds) {
     const cookie = await getEncryptionCookie();
-    const { homeAccountId, tenantId, clientId } = msalIds;
-    const scopes = ["https://substrate.office.com/sydney/.default"];
-    const lsKey = `${homeAccountId}-login.windows.net-accesstoken-${clientId}-${tenantId}-${scopes.join(" ")}--`;
-    const stored = localStorage.getItem(lsKey);
-    if (!stored) throw new Error("Missing MSAL access token in localStorage");
-    const payload = JSON.parse(stored);
-    const decrypted = await decryptPayload(cookie.key, payload.nonce, clientId, payload.data);
-    return JSON.parse(decrypted).secret;
-  }
+    const { homeAccountId, clientId } = msalIds;
 
+    const stores = [localStorage, sessionStorage];
+
+    function decodeJwt(jwt) {
+      const [, payload] = jwt.split(".");
+      return JSON.parse(atob(payload));
+    }
+
+    for (const store of stores) {
+      for (const key of Object.keys(store)) {
+        if (
+          key.startsWith("msal.2|") &&
+          key.includes("|accesstoken|") &&
+          key.includes(homeAccountId)
+        ) {
+          const entry = JSON.parse(store.getItem(key));
+          if (!entry) continue;
+
+          try {
+            const decrypted = await decryptPayload(
+              cookie.key,
+              entry.nonce,
+              clientId,
+              entry.data || entry.ciphertext
+            );
+
+            const jwt = JSON.parse(decrypted).secret;
+            const { aud } = decodeJwt(jwt);
+
+            console.log("[Copilot Export][DEBUG] Candidate token aud:", aud);
+
+            if (aud === "https://substrate.office.com/sydney") {
+              console.log("[Copilot Export][DEBUG] ✅ Using Copilot Chat token");
+              return jwt;
+            }
+
+          } catch (e) {
+            console.warn("[Copilot Export][DEBUG] Failed to decrypt token entry", e);
+          }
+        }
+      }
+    }
+
+    throw new Error("No Copilot Chat (sydney) access token found");
+  }
   async function getTokenAndIds() {
     const msalIds = getMsalIds();
     const token = await getAccessToken(msalIds);
