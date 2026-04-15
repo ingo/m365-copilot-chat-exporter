@@ -400,33 +400,83 @@
     if (el) el.textContent = text;
   }
 
+  function debugJwt(token) {
+    try {
+      const [, payload] = token.split(".");
+      const decoded = JSON.parse(atob(payload));
+      return {
+        aud: decoded.aud,
+        scp: decoded.scp,
+        appid: decoded.appid,
+        exp: new Date(decoded.exp * 1000).toISOString(),
+        tid: decoded.tid,
+        oid: decoded.oid,
+      };
+    } catch {
+      return "Could not decode JWT";
+    }
+  }
+
   /**
    * Call a Substrate endpoint with proper auth headers.
    */
-  async function substrateGet(auth, endpoint, params, includeVariants) {
-    const requestJson = JSON.stringify(params);
-    const variantsSuffix = includeVariants
-      ? `&variants=${encodeURIComponent(DEFAULT_VARIANTS)}`
+  async function substrateGet(auth, endpoint, params, includeVariants = true) {
+    console.log("[Copilot Export][DEBUG] JWT info:", debugJwt(auth.token));
+    const requestJson = encodeURIComponent(JSON.stringify(params));
+    const variants = includeVariants
+      ? "&variants=" + encodeURIComponent(
+        "feature.EnableLastMessageForGetChats," +
+        "feature.EnableMRUAgents," +
+        "feature.EnableHasLoopPages," +
+        "feature.EnableIsInputControlInGptItem"
+      )
       : "";
-    const url = `${SUBSTRATE_BASE}/${endpoint}?request=${encodeURIComponent(requestJson)}${variantsSuffix}`;
+
+    const url =
+      `${SUBSTRATE_BASE}/${endpoint}` +
+      `?request=${requestJson}${variants}`;
 
     const headers = {
-      authorization: `Bearer ${auth.token}`,
-      "content-type": "application/json",
-      "x-anchormailbox": `Oid:${auth.localAccountId}@${auth.tenantId}`,
-      "x-clientrequestid": crypto.randomUUID().replace(/-/g, ""),
-      "x-routingparameter-sessionkey": auth.localAccountId,
-      "x-scenario": "OfficeWebIncludedCopilot",
+      Authorization: `Bearer ${auth.token}`,
+      "Accept": "application/json",
+      "X-AnchorMailbox": auth.userPrincipalName,
+      "X-Tenant-Id": auth.tenantId,
+      "X-Client-Application": "M365CopilotChat",
+      "X-Scenario": "OfficeWeb",
+      "X-ClientRequestId": crypto.randomUUID().replace(/-/g, "")
     };
 
-    const resp = await fetch(url, { method: "GET", headers });
+    return new Promise((resolve, reject) => {
+      GM_xmlhttpRequest({
+        method: "GET",
+        url,
+        headers,
 
-    if (!resp.ok) {
-      throw new Error(`${endpoint} returned ${resp.status}`);
-    }
-    return resp.json();
+        onload: (resp) => {
+          console.log("[Copilot Export][DEBUG] Substrate response", {
+            status: resp.status,
+            responseText: resp.responseText
+          });
+          if (resp.status !== 200) {
+            reject(new Error(`${endpoint} returned ${resp.status}`));
+            return;
+          }
+
+          try {
+            resolve(JSON.parse(resp.responseText));
+          } catch (e) {
+            reject(
+              new Error(
+                `Non‑JSON response from ${endpoint}: ${resp.responseText}`
+              )
+            );
   }
+        },
 
+        onerror: reject
+      });
+    });
+  }
   /**
    * Fetch all chat IDs by paginating through GetChats.
    */
