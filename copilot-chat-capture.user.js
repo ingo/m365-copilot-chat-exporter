@@ -193,12 +193,15 @@
   }
 
   function getMsalIds() {
-    const data = window.__staticRouterHydrationData;
+    const data =
+      (typeof unsafeWindow !== "undefined" && unsafeWindow.__staticRouterHydrationData) ||
+      window.__staticRouterHydrationData;
+
     if (!data) throw new Error("Missing __staticRouterHydrationData");
   
     function walk(o) {
       if (!o || typeof o !== "object") return null;
-      if (o.objectId && o.tenantId) return o;
+      if (o.objectId && o.tenantId && o.userPrincipalName) return o;
       for (const v of Object.values(o)) {
         const found = walk(v);
         if (found) return found;
@@ -216,6 +219,7 @@
       tenantId,
       homeAccountId: `${objectId}.${tenantId}`,
       clientId: "c0ab8ce9-e9a0-42e7-b064-33d422df41f1", // Copilot client ID
+      userPrincipalName: identity.userPrincipalName
     };
   }
 
