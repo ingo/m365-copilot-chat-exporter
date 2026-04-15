@@ -24,6 +24,7 @@
   const conversations = new Map();
   const rawCaptures = [];
   let isFetchingAll = false;
+  const version = GM_info.script.version;
 
   const SKIP_MESSAGE_TYPES = new Set([
     "CrossPluginGroundingData",
@@ -875,7 +876,7 @@
       <div id="copilot-export-icon" title="Open Copilot Exporter">📥</div>
       <div id="copilot-export-panel">
         <div id="copilot-export-title-row">
-          <div class="title">Copilot Chat Exporter v4.4</div>
+          <div class="title">Copilot Chat Exporter v${version}</div>
           <button id="copilot-export-minimize-btn" title="Minimize" style="width:30px">−</button>
         </div>
         <div id="copilot-export-badge">Waiting for data...</div>
@@ -927,6 +928,6 @@
   }
 
   // ── Init ──────────────────────────────────────────────────────────
-  console.log("[Copilot Export v4.4] Loaded.");
+  console.log(`[Copilot Export v${version}] Loaded.`);
   createUI();
 })();
