@@ -223,54 +223,63 @@
     };
   }
 
-  async function getAccessToken(msalIds) {
-    const cookie = await getEncryptionCookie();
-    const { homeAccountId, clientId } = msalIds;
+async function getAccessToken(msalIds) {
+  const cookie = await getEncryptionCookie();
+  const { homeAccountId, clientId } = msalIds;
 
-    const stores = [localStorage, sessionStorage];
+  const stores = [localStorage, sessionStorage];
 
-    function decodeJwt(jwt) {
-      const [, payload] = jwt.split(".");
-      return JSON.parse(atob(payload));
-    }
+  function decodeJwt(jwt) {
+    const [, payload] = jwt.split(".");
+    return JSON.parse(atob(payload));
+  }
 
-    for (const store of stores) {
-      for (const key of Object.keys(store)) {
-        if (
-          key.startsWith("msal.2|") &&
-          key.includes("|accesstoken|") &&
-          key.includes(homeAccountId)
-        ) {
-          const entry = JSON.parse(store.getItem(key));
-          if (!entry) continue;
+  for (const store of stores) {
+    for (const key of Object.keys(store)) {
+      if (
+        key.startsWith("msal.2|") &&
+        key.includes("|accesstoken|") &&
+        key.includes(homeAccountId) &&
+        key.includes(clientId)
+      ) {
+        const raw = store.getItem(key);
+        if (!raw) continue;
 
-          try {
-            const decrypted = await decryptPayload(
-              cookie.key,
-              entry.nonce,
-              clientId,
-              entry.data || entry.ciphertext
-            );
+        let entry;
+        try {
+          entry = JSON.parse(raw);
+        } catch {
+          continue;
+        }
 
-            const jwt = JSON.parse(decrypted).secret;
-            const { aud } = decodeJwt(jwt);
+        try {
+          const decrypted = await decryptPayload(
+            cookie.key,
+            entry.nonce,
+            clientId,
+            entry.data || entry.ciphertext
+          );
 
-            console.log("[Copilot Export][DEBUG] Candidate token aud:", aud);
+          const jwt = JSON.parse(decrypted).secret;
+          const { aud } = decodeJwt(jwt);
 
-            if (aud === "https://substrate.office.com/sydney") {
-              console.log("[Copilot Export][DEBUG] ✅ Using Copilot Chat token");
-              return jwt;
-            }
+          console.log("[Copilot Export][DEBUG] Candidate token aud:", aud);
 
-          } catch (e) {
-            console.warn("[Copilot Export][DEBUG] Failed to decrypt token entry", e);
+          if (aud === "https://substrate.office.com/sydney") {
+            console.log("[Copilot Export][DEBUG] ✅ Using Copilot Chat token");
+            return jwt;
+          }
+        } catch (e) {
+          if (e.name !== "OperationError") {
+            console.warn("[Copilot Export][DEBUG] Token decrypt failed:", e);
           }
         }
       }
     }
-
-    throw new Error("No Copilot Chat (sydney) access token found");
   }
+
+  throw new Error("No Copilot Chat (sydney) access token found");
+}
   async function getTokenAndIds() {
     const msalIds = getMsalIds();
     const token = await getAccessToken(msalIds);
