@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         M365 Copilot Chat Exporter
 // @namespace    https://github.com/ingo/m365-copilot-chat-exporter
-// @version      4.4
+// @version      4.5
 // @description  Export Microsoft 365 Copilot conversations as ChatGPT-compatible conversations.json
 // @license      MIT
 // @author       ingo
@@ -9,8 +9,10 @@
 // @match        https://m365.cloud.microsoft/chat*
 // @match        https://microsoft365.com/chat*
 // @match        https://www.microsoft365.com/chat*
+// @connect      substrate.office.com
+// @connect      *.office.com
 // @icon         data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='1' y2='1'%3E%3Cstop offset='0%25' stop-color='%23a855f7'/%3E%3Cstop offset='100%25' stop-color='%236366f1'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='32' height='32' rx='6' fill='url(%23g)'/%3E%3Cpath d='M9 11h14M9 16h10M9 21h12' stroke='white' stroke-width='2' stroke-linecap='round'/%3E%3Cpath d='M22 18l3 3-3 3' stroke='%2322d3ee' stroke-width='2' stroke-linecap='round' stroke-linejoin='round' fill='none'/%3E%3C/svg%3E
-// @grant        none
+// @grant        GM_xmlhttpRequest
 // @run-at       document-end
 // ==/UserScript==
 
@@ -22,6 +24,7 @@
   const conversations = new Map();
   const rawCaptures = [];
   let isFetchingAll = false;
+  const version = GM_info.script.version;
 
   const SKIP_MESSAGE_TYPES = new Set([
     "CrossPluginGroundingData",
@@ -190,29 +193,93 @@
   }
 
   function getMsalIds() {
-    const el = document.getElementById("identity");
-    if (!el?.textContent) throw new Error("Missing #identity element in page");
-    const { objectId, tenantId } = JSON.parse(el.textContent);
+    const data =
+      (typeof unsafeWindow !== "undefined" && unsafeWindow.__staticRouterHydrationData) ||
+      window.__staticRouterHydrationData;
+
+    if (!data) throw new Error("Missing __staticRouterHydrationData");
+  
+    function walk(o) {
+      if (!o || typeof o !== "object") return null;
+      if (o.objectId && o.tenantId && o.userPrincipalName) return o;
+      for (const v of Object.values(o)) {
+        const found = walk(v);
+        if (found) return found;
+      }
+      return null;
+    }
+  
+    const identity = walk(data);
+    if (!identity) throw new Error("Could not locate identity object");
+  
+    const { objectId, tenantId } = identity;
+  
     return {
       localAccountId: objectId,
       tenantId,
       homeAccountId: `${objectId}.${tenantId}`,
-      clientId: "c0ab8ce9-e9a0-42e7-b064-33d422df41f1",
+      clientId: "c0ab8ce9-e9a0-42e7-b064-33d422df41f1", // Copilot client ID
+      userPrincipalName: identity.userPrincipalName
     };
   }
 
-  async function getAccessToken(msalIds) {
-    const cookie = await getEncryptionCookie();
-    const { homeAccountId, tenantId, clientId } = msalIds;
-    const scopes = ["https://substrate.office.com/sydney/.default"];
-    const lsKey = `${homeAccountId}-login.windows.net-accesstoken-${clientId}-${tenantId}-${scopes.join(" ")}--`;
-    const stored = localStorage.getItem(lsKey);
-    if (!stored) throw new Error("Missing MSAL access token in localStorage");
-    const payload = JSON.parse(stored);
-    const decrypted = await decryptPayload(cookie.key, payload.nonce, clientId, payload.data);
-    return JSON.parse(decrypted).secret;
+async function getAccessToken(msalIds) {
+  const cookie = await getEncryptionCookie();
+  const { homeAccountId, clientId } = msalIds;
+
+  const stores = [localStorage, sessionStorage];
+
+  function decodeJwt(jwt) {
+    const [, payload] = jwt.split(".");
+    return JSON.parse(atob(payload));
   }
 
+  for (const store of stores) {
+    for (const key of Object.keys(store)) {
+      if (
+        key.startsWith("msal.2|") &&
+        key.includes("|accesstoken|") &&
+        key.includes(homeAccountId) &&
+        key.includes(clientId)
+      ) {
+        const raw = store.getItem(key);
+        if (!raw) continue;
+
+        let entry;
+        try {
+          entry = JSON.parse(raw);
+        } catch {
+          continue;
+        }
+
+        try {
+          const decrypted = await decryptPayload(
+            cookie.key,
+            entry.nonce,
+            clientId,
+            entry.data || entry.ciphertext
+          );
+
+          const jwt = JSON.parse(decrypted).secret;
+          const { aud } = decodeJwt(jwt);
+
+          console.log("[Copilot Export][DEBUG] Candidate token aud:", aud);
+
+          if (aud === "https://substrate.office.com/sydney") {
+            console.log("[Copilot Export][DEBUG] ✅ Using Copilot Chat token");
+            return jwt;
+          }
+        } catch (e) {
+          if (e.name !== "OperationError") {
+            console.warn("[Copilot Export][DEBUG] Token decrypt failed:", e);
+          }
+        }
+      }
+    }
+  }
+
+  throw new Error("No Copilot Chat (sydney) access token found");
+}
   async function getTokenAndIds() {
     const msalIds = getMsalIds();
     const token = await getAccessToken(msalIds);
@@ -342,33 +409,83 @@
     if (el) el.textContent = text;
   }
 
+  function debugJwt(token) {
+    try {
+      const [, payload] = token.split(".");
+      const decoded = JSON.parse(atob(payload));
+      return {
+        aud: decoded.aud,
+        scp: decoded.scp,
+        appid: decoded.appid,
+        exp: new Date(decoded.exp * 1000).toISOString(),
+        tid: decoded.tid,
+        oid: decoded.oid,
+      };
+    } catch {
+      return "Could not decode JWT";
+    }
+  }
+
   /**
    * Call a Substrate endpoint with proper auth headers.
    */
-  async function substrateGet(auth, endpoint, params, includeVariants) {
-    const requestJson = JSON.stringify(params);
-    const variantsSuffix = includeVariants
-      ? `&variants=${encodeURIComponent(DEFAULT_VARIANTS)}`
+  async function substrateGet(auth, endpoint, params, includeVariants = true) {
+    console.log("[Copilot Export][DEBUG] JWT info:", debugJwt(auth.token));
+    const requestJson = encodeURIComponent(JSON.stringify(params));
+    const variants = includeVariants
+      ? "&variants=" + encodeURIComponent(
+        "feature.EnableLastMessageForGetChats," +
+        "feature.EnableMRUAgents," +
+        "feature.EnableHasLoopPages," +
+        "feature.EnableIsInputControlInGptItem"
+      )
       : "";
-    const url = `${SUBSTRATE_BASE}/${endpoint}?request=${encodeURIComponent(requestJson)}${variantsSuffix}`;
+
+    const url =
+      `${SUBSTRATE_BASE}/${endpoint}` +
+      `?request=${requestJson}${variants}`;
 
     const headers = {
-      authorization: `Bearer ${auth.token}`,
-      "content-type": "application/json",
-      "x-anchormailbox": `Oid:${auth.localAccountId}@${auth.tenantId}`,
-      "x-clientrequestid": crypto.randomUUID().replace(/-/g, ""),
-      "x-routingparameter-sessionkey": auth.localAccountId,
-      "x-scenario": "OfficeWebIncludedCopilot",
+      Authorization: `Bearer ${auth.token}`,
+      "Accept": "application/json",
+      "X-AnchorMailbox": auth.userPrincipalName,
+      "X-Tenant-Id": auth.tenantId,
+      "X-Client-Application": "M365CopilotChat",
+      "X-Scenario": "OfficeWeb",
+      "X-ClientRequestId": crypto.randomUUID().replace(/-/g, "")
     };
 
-    const resp = await fetch(url, { method: "GET", headers });
+    return new Promise((resolve, reject) => {
+      GM_xmlhttpRequest({
+        method: "GET",
+        url,
+        headers,
 
-    if (!resp.ok) {
-      throw new Error(`${endpoint} returned ${resp.status}`);
-    }
-    return resp.json();
+        onload: (resp) => {
+          console.log("[Copilot Export][DEBUG] Substrate response", {
+            status: resp.status,
+            responseText: resp.responseText
+          });
+          if (resp.status !== 200) {
+            reject(new Error(`${endpoint} returned ${resp.status}`));
+            return;
+          }
+
+          try {
+            resolve(JSON.parse(resp.responseText));
+          } catch (e) {
+            reject(
+              new Error(
+                `Non‑JSON response from ${endpoint}: ${resp.responseText}`
+              )
+            );
   }
+        },
 
+        onerror: reject
+      });
+    });
+  }
   /**
    * Fetch all chat IDs by paginating through GetChats.
    */
@@ -858,7 +975,7 @@
       <div id="copilot-export-icon" title="Open Copilot Exporter">📥</div>
       <div id="copilot-export-panel">
         <div id="copilot-export-title-row">
-          <div class="title">Copilot Chat Exporter v4.4</div>
+          <div class="title">Copilot Chat Exporter v${version}</div>
           <button id="copilot-export-minimize-btn" title="Minimize" style="width:30px">−</button>
         </div>
         <div id="copilot-export-badge">Waiting for data...</div>
@@ -910,6 +1027,6 @@
   }
 
   // ── Init ──────────────────────────────────────────────────────────
-  console.log("[Copilot Export v4.4] Loaded.");
+  console.log(`[Copilot Export v${version}] Loaded.`);
   createUI();
 })();
