@@ -56,7 +56,7 @@
     for (let i = 0; i < text.length; i++) {
       const char = text[i];
       const code = text.charCodeAt(i);
-      
+
       if (code === 0x2028 || code === 0x2029) {
         // Replace Unicode line/paragraph separators with space
         result += " ";
@@ -202,7 +202,7 @@
       window.__staticRouterHydrationData;
 
     if (!data) throw new Error("Missing __staticRouterHydrationData");
-  
+
     function walk(o) {
       if (!o || typeof o !== "object") return null;
       if (o.objectId && o.tenantId && o.userPrincipalName) return o;
@@ -212,12 +212,12 @@
       }
       return null;
     }
-  
+
     const identity = walk(data);
     if (!identity) throw new Error("Could not locate identity object");
-  
+
     const { objectId, tenantId } = identity;
-  
+
     return {
       localAccountId: objectId,
       tenantId,
@@ -227,74 +227,74 @@
     };
   }
 
-async function getAccessToken(msalIds) {
-  const cookie = await getEncryptionCookie();
-  const { homeAccountId, clientId } = msalIds;
+  async function getAccessToken(msalIds) {
+    const cookie = await getEncryptionCookie();
+    const { homeAccountId, clientId } = msalIds;
 
-  const stores = [localStorage, sessionStorage];
+    const stores = [localStorage, sessionStorage];
 
-  function decodeJwt(jwt) {
-    const [, payload] = jwt.split(".");
-    return JSON.parse(atob(payload));
-  }
+    function decodeJwt(jwt) {
+      const [, payload] = jwt.split(".");
+      return JSON.parse(atob(payload));
+    }
 
-  for (const store of stores) {
-    for (const key of Object.keys(store)) {
-      console.log("[Copilot Export][DEBUG] Storage key:", key);
-      if (
-        key.includes("|accesstoken|") &&
-        key.includes(homeAccountId) &&
-        key.includes(clientId)
-      ) {
-        const raw = store.getItem(key);
-        if (!raw) continue;
+    for (const store of stores) {
+      for (const key of Object.keys(store)) {
+        console.log("[Copilot Export][DEBUG] Storage key:", key);
+        if (
+          key.includes("|accesstoken|") &&
+          key.includes(homeAccountId) &&
+          key.includes(clientId)
+        ) {
+          const raw = store.getItem(key);
+          if (!raw) continue;
 
-        let entry;
-        try {
-          entry = JSON.parse(raw);
-        } catch {
-          continue;
-        }
-
-        try {
-          const decrypted = await decryptPayload(
-            cookie.key,
-            entry.nonce,
-            clientId,
-            entry.data || entry.ciphertext
-          );
-
-          const jwt = JSON.parse(decrypted).secret;
-          const decoded = decodeJwt(jwt);
-
-          console.log(
-            "[Copilot Export][DEBUG] Token:",
-            {
-              aud: decoded.aud,
-              scp: decoded.scp,
-              appid: decoded.appid,
-              roles: decoded.roles
-            }
-          );
-
-          if (
-            decoded.aud === "https://substrate.office.com/sydney"
-          ) {
-            console.log("[Copilot Export][DEBUG] ✅ Using Copilot Chat token");
-            return jwt;
+          let entry;
+          try {
+            entry = JSON.parse(raw);
+          } catch {
+            continue;
           }
-        } catch (e) {
-          // ✅ EXPECTED for non‑Copilot tokens
-          if (e.name !== "OperationError") {
-            console.warn("[Copilot Export][DEBUG] Token decrypt failed:", e);
+
+          try {
+            const decrypted = await decryptPayload(
+              cookie.key,
+              entry.nonce,
+              clientId,
+              entry.data || entry.ciphertext
+            );
+
+            const jwt = JSON.parse(decrypted).secret;
+            const decoded = decodeJwt(jwt);
+
+            console.log(
+              "[Copilot Export][DEBUG] Token:",
+              {
+                aud: decoded.aud,
+                scp: decoded.scp,
+                appid: decoded.appid,
+                roles: decoded.roles
+              }
+            );
+
+            if (
+              decoded.aud === "https://substrate.office.com/sydney"
+            ) {
+              console.log("[Copilot Export][DEBUG] ✅ Using Copilot Chat token");
+              return jwt;
+            }
+          } catch (e) {
+            // ✅ EXPECTED for non‑Copilot tokens
+            if (e.name !== "OperationError") {
+              console.warn("[Copilot Export][DEBUG] Token decrypt failed:", e);
+            }
           }
         }
       }
     }
-  }
 
-  throw new Error("No Copilot Chat (sydney) access token found");
-}
+    throw new Error("No Copilot Chat (sydney) access token found");
+  }
 
   async function getTokenAndIds() {
     const msalIds = getMsalIds();
@@ -381,7 +381,7 @@ async function getAccessToken(msalIds) {
         if (url.includes("GetConversation")) handleGetConversation(json);
         else if (url.includes("GetChats")) handleGetChats(json);
       } catch { /* not JSON */ }
-    }).catch(() => {});
+    }).catch(() => { });
 
     return response;
   };
@@ -495,7 +495,7 @@ async function getAccessToken(msalIds) {
                 `Non‑JSON response from ${endpoint}: ${resp.responseText}`
               )
             );
-  }
+          }
         },
 
         onerror: reject
@@ -618,7 +618,7 @@ async function getAccessToken(msalIds) {
       );
       setStatus(
         `Done! ${withMessages.length} conversations loaded` +
-          (errors > 0 ? ` (${errors} errors)` : "")
+        (errors > 0 ? ` (${errors} errors)` : "")
       );
     } catch (e) {
       setStatus(`Error: ${e.message}`);
@@ -788,7 +788,7 @@ async function getAccessToken(msalIds) {
         range
           ? "No conversations with content in the selected date range.\n\nTry a wider date range or use Fetch All first."
           : "No conversation content captured yet.\n\n" +
-              'Use "Fetch All Conversations" to load everything first.'
+          'Use "Fetch All Conversations" to load everything first.'
       );
       return;
     }
