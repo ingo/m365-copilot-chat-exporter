@@ -240,8 +240,8 @@ async function getAccessToken(msalIds) {
 
   for (const store of stores) {
     for (const key of Object.keys(store)) {
+      console.log("[Copilot Export][DEBUG] Storage key:", key);
       if (
-        key.startsWith("msal.2|") &&
         key.includes("|accesstoken|") &&
         key.includes(homeAccountId) &&
         key.includes(clientId)
@@ -265,15 +265,26 @@ async function getAccessToken(msalIds) {
           );
 
           const jwt = JSON.parse(decrypted).secret;
-          const { aud } = decodeJwt(jwt);
+          const decoded = decodeJwt(jwt);
 
-          console.log("[Copilot Export][DEBUG] Candidate token aud:", aud);
+          console.log(
+            "[Copilot Export][DEBUG] Token:",
+            {
+              aud: decoded.aud,
+              scp: decoded.scp,
+              appid: decoded.appid,
+              roles: decoded.roles
+            }
+          );
 
-          if (aud === "https://substrate.office.com/sydney") {
+          if (
+            decoded.aud === "https://substrate.office.com/sydney"
+          ) {
             console.log("[Copilot Export][DEBUG] ✅ Using Copilot Chat token");
             return jwt;
           }
         } catch (e) {
+          // ✅ EXPECTED for non‑Copilot tokens
           if (e.name !== "OperationError") {
             console.warn("[Copilot Export][DEBUG] Token decrypt failed:", e);
           }
@@ -284,6 +295,7 @@ async function getAccessToken(msalIds) {
 
   throw new Error("No Copilot Chat (sydney) access token found");
 }
+
   async function getTokenAndIds() {
     const msalIds = getMsalIds();
     const token = await getAccessToken(msalIds);
