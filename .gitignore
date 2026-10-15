@@ -1,0 +1,4 @@
+copilot_conversations_*.json
+copilot_raw_capture_*.json
+output/
+*.tmp

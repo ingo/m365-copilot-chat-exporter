@@ -37,6 +37,23 @@ The script reads your existing MSAL authentication token from the browser's `loc
 - Requires an active Microsoft 365 Copilot session (the script reuses your existing browser auth)
 - If your MSAL token expires mid-fetch, refresh the page and try again
 
+## Converting to Markdown (Google NotebookLM, OneNote, OneDrive)
+
+A built-in zero-dependency Node.js script (`convert.js`) is included to convert either raw Substrate captures or ChatGPT-format JSON into clean Markdown:
+
+```bash
+# Auto-detects the exported JSON file in current directory and outputs to ./output
+node convert.js
+
+# Or specify input file and output directory:
+node convert.js copilot_raw_capture_2026-10-11.json ./my_output
+```
+
+### What it generates:
+1. **`output/individual_chats/`**: Individual `.md` files for each chat with clean timestamps, roles, and source citations (ready for OneNote or OneDrive).
+2. **`output/notebooklm_all_conversations.md`**: A single combined document with a linked Table of Contents (perfect for Google NotebookLM's 50-source limit).
+
+
 ## Acknowledgements
 
 Hat tip to [M365 Copilot Exporter](https://greasyfork.org/en/scripts/543763-m365-copilot-exporter) by ganyuke — the MSAL token decryption approach and Substrate API request format were adapted from that project. This script differs by outputting ChatGPT-compatible `conversations.json` (instead of raw per-conversation JSON files), adding date range filtering, and running as a single zero-dependency userscript.
